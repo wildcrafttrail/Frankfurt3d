@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1723">
+  <meta name="description" content="Interaktywna mapa Frankfurtu 3D. Dotknij budynku, aby sprawdzić liczbę pięter na podstawie danych OpenStreetMap.">
+  <title>Frankfurt 3D | Budynki i piętra — poprawka 2.1</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@6.16.0/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.16.0/dist/maplibre-gl.css">
+  <style>
+    :root {font-family:system-ui,-apple-system,Roboto,Arial,sans-serif;color:#eef7fd;color-scheme:dark;--navy:#101f30;--glass:rgba(12,27,42,.91);--line:rgba(255,255,255,.14);--mint:#81edcf}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body,#map{width:100%;height:100%;margin:0;overflow:hidden}
+    body{background:#142b3b;overscroll-behavior:none}
+    button,select{font:inherit;cursor:pointer}
+    button:focus-visible,select:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
+    #map{position:fixed;inset:0;background:linear-gradient(#c9e3ea,#dae4e8)}
+    #look{display:none;position:fixed;inset:0;z-index:3;touch-action:none}
+    .gradient{position:fixed;inset:0;z-index:4;pointer-events:none;background:linear-gradient(#06121d8f,transparent 23%,transparent 73%,#06121d60)}
+    #ui{position:fixed;inset:0;z-index:9;pointer-events:none}
+    #ui button,#ui select,#ui .joystick,#ui .info{pointer-events:auto}
+    .top{position:absolute;top:calc(12px + env(safe-area-inset-top));left:12px;right:12px;display:flex;justify-content:space-between;align-items:start;gap:10px}
+    .brand{min-width:0;padding:10px 12px;border-radius:17px;background:var(--glass);border:1px solid var(--line);box-shadow:0 10px 20px #0002;backdrop-filter:blur(12px)}
+    .eyebrow{font-size:9px;font-weight:800;letter-spacing:.17em;color:var(--mint)}
+    .brand h1{font-size:19px;letter-spacing:-.045em;line-height:1.13;margin:2px 0 4px}
+    .brand p{font-size:10px;color:#b2c8d4;margin:0;max-width:230px}
+    .top-actions{display:flex;gap:8px}
+    .iconbtn{width:46px;height:46px;border-radius:15px;border:1px solid var(--line);background:var(--glass);color:#eaf7fb;font-size:20px;display:grid;place-items:center;backdrop-filter:blur(12px)}
+    .iconbtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+    .toolbar{position:absolute;top:calc(89px + env(safe-area-inset-top));left:12px;right:12px;display:flex;gap:8px;align-items:stretch}
+    .place-wrap{position:relative;flex:1;min-width:0;max-width:350px}
+    select{appearance:none;width:100%;height:47px;padding:0 31px 0 14px;background:var(--glass);border:1px solid var(--line);border-radius:14px;color:#f0fbff;font-size:12px;font-weight:750}
+    select option{background:#192d3e}
+    .place-wrap::after{content:'⌄';position:absolute;right:12px;top:8px;font-size:20px;pointer-events:none;color:var(--mint)}
+    .status{padding:11px 12px;min-width:105px;border:1px solid var(--line);background:var(--glass);border-radius:14px;display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;font-size:10px;font-weight:800;letter-spacing:.04em}
+    .status i{background:var(--mint);width:7px;height:7px;border-radius:100%}
+    .tip{position:absolute;top:calc(146px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);max-width:calc(100vw - 28px);text-align:center;white-space:normal;min-width:230px}
+    .tip span{display:inline-block;font-size:11px;color:#e6f7fa;padding:8px 12px;border-radius:50px;border:1px solid #ffffff2c;background:#0a1d2bbd;backdrop-filter:blur(12px)}
+    .bottom-actions{position:absolute;right:12px;bottom:calc(30px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:end;gap:8px}
+    .action{display:flex;align-items:center;justify-content:center;gap:9px;padding:12px 14px;border:1px solid var(--line);border-radius:15px;color:white;background:var(--glass);font-size:12px;font-weight:800;min-height:47px;backdrop-filter:blur(12px);box-shadow:0 4px 12px #0002}
+    .action.primary{background:#16756d;border-color:#65d3bf77}
+    .info{display:none;position:absolute;left:12px;right:12px;bottom:calc(22px + env(safe-area-inset-bottom));max-width:450px;margin:auto;background:#14293beF;border:1px solid #ffffff42;border-radius:22px;padding:17px 17px 16px;box-shadow:0 16px 44px #0008;backdrop-filter:blur(16px)}
+    .info .close{position:absolute;right:10px;top:10px;color:#d5e6eb;background:#ffffff13;border:0;border-radius:10px;width:34px;height:34px;font-size:21px}
+    .info h2{font-size:20px;line-height:1.3;letter-spacing:-.03em;max-width:calc(100% - 30px);margin:4px 0 14px;overflow-wrap:anywhere}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px}
+    .metric{border:1px solid #ffffff1d;border-radius:14px;background:#ffffff0b;padding:12px;min-width:0}
+    .metric label{display:block;font-size:10px;color:#b9cbd5;font-weight:800;letter-spacing:.09em;margin-bottom:6px}
+    .metric strong{display:block;font-size:19px;line-height:1.2;letter-spacing:-.03em}
+    .metric small{font-size:10px;color:#a7c0cb;display:block;margin-top:6px;line-height:1.4}
+    .detail-note{font-size:11px;line-height:1.5;color:#c6d8e0;margin:9px 0 0}
+    #osmLink{color:var(--mint);display:none;font-size:11px;font-weight:700;margin-top:8px;text-decoration:underline;text-underline-offset:3px;pointer-events:auto}
+    #toast{display:none;position:absolute;top:calc(160px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);max-width:calc(100vw - 30px);background:#132f3eee;color:#e9faff;border:1px solid #ffffff33;padding:9px 14px;border-radius:13px;text-align:center;font-size:12px}
+    .walk-control{display:none}
+    .walk-controls{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom));left:14px;right:14px;display:none;justify-content:space-between;align-items:end;gap:10px}
+    .joystick{width:124px;height:124px;border-radius:50%;border:1px solid #ffffff43;background:radial-gradient(circle,#203e4ac9,#0b1c2de5);position:relative;touch-action:none;box-shadow:0 3px 22px #0005}
+    .joystick:before,.joystick:after{content:'';position:absolute;background:#ffffff28;pointer-events:none}
+    .joystick:before{height:1px;top:50%;left:15px;right:15px}
+    .joystick:after{width:1px;left:50%;top:15px;bottom:15px}
+    #knob{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:53px;height:53px;display:grid;place-items:center;background:linear-gradient(145deg,#62b5a5,#236e76);border:1px solid #ffffff65;border-radius:50%;font-size:21px;pointer-events:none}
+    .walk-caption{text-align:center;font-size:9px;letter-spacing:.1em;font-weight:800;color:white;margin-top:6px;text-shadow:0 1px 5px black}
+    .walk-right{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+    .compass{background:var(--glass);border:1px solid var(--line);border-radius:15px;width:73px;height:68px;display:grid;place-content:center;text-align:center;font-size:11px}
+    .compass .arrow{font-size:23px;color:var(--mint);line-height:1.1}
+    .walk .walk-controls{display:flex}
+    .walk #look{display:block}
+    .walk .bottom-actions{display:none}
+    .walk .info{bottom:calc(162px + env(safe-area-inset-bottom))}
+    .walk .walk-control{display:flex}
+    .walk .nonwalk{display:none}
+    #loading{position:fixed;inset:0;z-index:99;background:linear-gradient(150deg,#0a1c2d,#214856);display:grid;place-items:center;padding:25px;text-align:center}
+    #loading .loading-card{max-width:340px}
+    #loading .logo{font-size:38px;color:var(--mint);margin-bottom:13px}
+    #loading h2{font-size:27px;letter-spacing:-.04em;margin:0 0 9px}
+    #loading p{font-size:13px;color:#b5cad4;line-height:1.55;margin:0}
+    .spin{width:30px;height:30px;border-radius:50%;border:3px solid #ffffff2a;border-top-color:var(--mint);animation:spin 1s linear infinite;margin:22px auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #help{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:#031019c9;padding:20px}
+    #help .panel{max-width:390px;background:#132b3b;border:1px solid #ffffff33;border-radius:22px;padding:20px}
+    #help h2{margin:0 0 10px;font-size:20px}
+    #help p{font-size:13px;line-height:1.55;color:#d2e4e9}
+    #help button{width:100%;border:0;background:var(--mint);color:#08282d;border-radius:13px;padding:12px;font-weight:850}
+    .maplibregl-ctrl-attrib{font-size:9px!important}
+    .maplibregl-ctrl-bottom-right{bottom:0}
+    @media(max-width:380px){.brand h1{font-size:17px}.brand p{font-size:9px}.status{padding:10px;font-size:9px;min-width:85px}.toolbar{top:calc(83px + env(safe-area-inset-top))}.tip{top:calc(140px + env(safe-area-inset-top))}}
+    @media(max-height:650px){.tip{display:none}.info{padding:12px}.info h2{margin-bottom:8px}.joystick{width:94px;height:94px}.walk .info{bottom:calc(127px + env(safe-area-inset-bottom))}}
+    @media(prefers-reduced-motion:reduce){.spin{animation:none}}
+  </style>
+</head>
+<body>
+  <div id="map" role="application" aria-label="Mapa Frankfurtu z budynkami 3D"></div>
+  <div id="look" aria-label="Przeciągnij palcem, aby się rozejrzeć"></div>
+  <div class="gradient"></div>
+  <div id="ui">
+    <header class="top">
+      <div class="brand"><div class="eyebrow">CITY EXPLORER · BUDYNKI 3D · 2.1</div><h1>FRANKFURT<span style="color:var(--mint)">.</span></h1><p>Bryły budynków i informacje o piętrach</p></div>
+      <div class="top-actions">
+        <button class="iconbtn" id="helpBtn" aria-label="Pomoc" title="Jak używać">?</button>
+        <button class="iconbtn" id="resetBtn" aria-label="Przywróć widok miasta" title="Wróć na Römerberg"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8M5 10v11h14V10M9 21v-7h6v7"/></svg></button>
+      </div>
+    </header>
+    <div class="toolbar">
+      <div class="place-wrap"><select id="place" aria-label="Wybierz miejsce we Frankfurcie">
+        <option value="roemer">📍 Römerberg / Stare Miasto</option>
+        <option value="hauptwache">📍 Hauptwache / Zeil</option>
+        <option value="alteoper">📍 Alte Oper / Opernplatz</option>
+        <option value="hauptbahnhof">📍 Hauptbahnhof / Dworzec</option>
+        <option value="ezb">📍 Europejski Bank Centralny</option>
+        <option value="main">📍 Eiserner Steg / Men</option>
+      </select></div>
+      <div class="status"><i></i><span id="statusText">BUDYNKI 3D</span></div>
+    </div>
+    <div class="tip"><span id="tipText">Dotknij budynku, aby sprawdzić liczbę pięter</span></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div class="bottom-actions"><button class="action primary" id="walkBtn">🚶 Spacer z ulicy</button><button class="action" id="northBtn">↟ Północ</button></div>
+    <div class="walk-controls"><div><div class="joystick" id="joy" aria-label="Joystick do poruszania się"><div id="knob">✣</div></div><div class="walk-caption">PORUSZAJ SIĘ</div></div><div class="walk-right"><div class="compass"><div class="arrow" id="arrow">▲</div><span id="direction">N</span></div><button class="action walk-control" id="speedBtn">⚡ Szybciej</button><button class="action primary walk-control" id="backBtn">▣ Mapa 3D</button></div></div>
+    <section id="info" class="info" aria-label="Informacje o wybranym budynku" aria-live="polite">
+      <button class="close" id="closeInfo" aria-label="Zamknij informacje">×</button>
+      <div class="eyebrow">WYBRANY BUDYNEK</div>
+      <h2 id="buildingName">Budynek</h2>
+      <div class="stats">
+        <div class="metric"><label>LICZBA PIĘTER</label><strong id="floors">Sprawdzam…</strong><small id="floorSource">Odczyt z OpenStreetMap</small></div>
+        <div class="metric"><label>WYSOKOŚĆ BRYŁY</label><strong id="height">—</strong><small id="heightSource">Dane mapy / przybliżenie</small></div>
+      </div>
+      <p class="detail-note" id="detailNote">Sprawdzam szczegółowe dane budynku…</p>
+      <a id="osmLink" href="#" target="_blank" rel="noopener noreferrer">Zobacz budynek w OpenStreetMap ↗</a>
+    </section>
+  </div>
+  <div id="loading"><div class="loading-card"><div class="logo">▤</div><h2>Frankfurt 3D</h2><p id="loadingText">Ładowanie mapy i trójwymiarowych budynków…</p><div class="spin"></div></div></div>
+  <div id="help"><div class="panel"><h2>Jak korzystać z mapy?</h2><p><b>Mapa 3D:</b> przesuwaj dwoma palcami, aby obracać lub pochylać mapę. Dotknij bryły budynku, aby sprawdzić liczbę pięter.</p><p><b>Spacer:</b> wybierz „Spacer z ulicy”, użyj joysticka do chodzenia, a drugim palcem przeciągaj ekran, aby się rozglądać. Dotknij budynku, aby zobaczyć dane.</p><p>Dokładna liczba pięter pojawia się tylko, gdy jest zapisana w OpenStreetMap. Przy braku danych wyraźnie oznaczamy szacunek. Strona wymaga Internetu i WebGL.</p><button id="closeHelp">Rozumiem</button></div></div>
+  <script type="module">
+    // MapLibre 6 jest modułem ESM. Gdy pierwszy CDN zostanie zablokowany, sprawdzamy drugi.
+    // Bezpośredni `import ... from ...` przerwałby całe uruchamianie strony.
+    const LIBRARY_URLS = [
+      'https://cdn.jsdelivr.net/npm/maplibre-gl@6.16.0/dist/maplibre-gl.mjs',
+      'https://unpkg.com/maplibre-gl@6.16.0/dist/maplibre-gl.mjs'
+    ];
+    async function loadMapLibrary(){
+      const failures=[];
+      for (let i=0;i<LIBRARY_URLS.length;i++) {
+        const url=LIBRARY_URLS[i];
+        document.getElementById('loadingText').textContent = i===0
+          ? 'Uruchamianie silnika 3D…'
+          : 'Pierwszy serwer nie działa. Łączę się z serwerem zapasowym…';
+        try {
+          // Błąd HTTP/CORS/import zostanie przechwycony i uruchomi próbę zapasową.
+          const mod=await import(url);
+          if(typeof mod.Map!=='function' || !mod.MercatorCoordinate)throw new Error('Niepoprawny moduł mapy');
+          return mod;
+        }catch(e){
+          console.warn('Nie udało się załadować:',url,e);
+          failures.push(String(e?.message||e));
+        }
+      }
+      throw new Error('Nie można pobrać biblioteki MapLibre z dwóch serwerów. '+failures.join(' / '));
+    }
+    function showLibraryError(error){
+      const area=document.getElementById('loading');
+      area.querySelector('.spin').style.display='none';
+      area.querySelector('h2').textContent='Nie można włączyć mapy 3D';
+      area.querySelector('.logo').textContent='⚠';
+      area.querySelector('p').textContent='Przeglądarka zablokowała pobieranie silnika mapy lub połączenie się nie powiodło. Spróbuj otworzyć stronę w Chrome. W Brave wyłącz tarczę (Shields) dla tej strony i odśwież.';
+      const btn=document.createElement('button');
+      btn.textContent='Spróbuj ponownie';
+      btn.style.cssText='margin-top:18px;padding:13px 18px;border-radius:12px;border:0;color:#08282d;background:#81edcf;font:700 14px system-ui;cursor:pointer';
+      btn.addEventListener('click',()=>location.reload());
+      area.querySelector('.loading-card').append(btn);
+      console.error('Nie udało się uruchomić Frankfurt 3D:',error);
+    }
+    let maplibregl;
+    try {
+      maplibregl=await loadMapLibrary();
+      if(typeof maplibregl.supported==='function' && !maplibregl.supported()) {
+        throw new Error('WebGL nie jest dostępny w tej przeglądarce.');
+      }
+    }catch(error){
+      showLibraryError(error);
+      throw error;
+    }
+    const $ = (id) => document.getElementById(id);
+    const POINTS = {
+      roemer: {coord: [8.68220,50.11028],bearing:-24,heading:-0.2},
+      hauptwache: {coord:[8.67885,50.11387],bearing:15,heading:0.25},
+      alteoper: {coord:[8.67125,50.11562],bearing:-32,heading:0.9},
+      hauptbahnhof: {coord:[8.66385,50.10770],bearing:-20,heading:1.0},
+      ezb: {coord:[8.70285,50.10935],bearing:-30,heading:0.6},
+      main: {coord:[8.68214,50.10852],bearing:0,heading:1.55}
+    };
+    const EXTRUSION = 'frankfurt-buildings-3d';
+    const BASELINE = [8.68220,50.11028];
+    const merc0 = maplibregl.MercatorCoordinate.fromLngLat(BASELINE);
+    const meterScale = merc0.meterInMercatorCoordinateUnits();
+    const player = {x:0,y:0,heading:-0.2,tilt:0};
+    const WALK_EYE = 1.65;
+    let walk = false, ready = false, fast = false, lastTime = performance.now();
+    let lookPointer = null, lookMoved = false, lookStart = null;
+    let stickPointer = null, joyX = 0, joyY = 0, selectedRequest = 0, infoOpen = false;
+    let toastTimeout;
+    const pressed = new Set();
+    const map = new maplibregl.Map({
+      container:'map', style:'https://tiles.openfreemap.org/styles/liberty',
+      center:BASELINE, zoom:16.8, pitch:62, bearing:-24, maxPitch:105,
+      centerClampedToGround:false, attributionControl:true, fadeDuration:0,
+      maxBounds:[[8.44,49.94],[8.94,50.28]],
+      canvasContextAttributes:{antialias:true}, pixelRatio:Math.min(window.devicePixelRatio||1,1.7)
+    });
+    const merc = (x,y)=>new maplibregl.MercatorCoordinate(merc0.x + x*meterScale,merc0.y - y*meterScale).toLngLat();
+    function setPlayer(coord){
+      const m=maplibregl.MercatorCoordinate.fromLngLat(coord);
+      player.x=(m.x-merc0.x)/meterScale;
+      player.y=(merc0.y-m.y)/meterScale;
+    }
+    function drawWalk(){
+      if(!ready || !walk)return;
+      const target=merc(player.x+Math.cos(player.heading)*20,player.y+Math.sin(player.heading)*20);
+      const eye=merc(player.x,player.y);
+      const targetZ=WALK_EYE+Math.tan(player.tilt)*20;
+      try{ map.jumpTo(map.calculateCameraOptionsFromTo(eye,WALK_EYE,target,targetZ)); }
+      catch(err){ console.warn('Kamera spaceru:',err); }
+      const bearing=((90-player.heading*180/Math.PI)%360+360)%360;
+      $('arrow').style.transform=`rotate(${bearing}deg)`;
+      $('direction').textContent=['N','NE','E','SE','S','SW','W','NW'][Math.round(bearing/45)%8];
+    }
+    function switchMode(toWalk){
+      if(!ready)return;
+      walk=toWalk;
+      document.body.classList.toggle('walk',walk);
+      $('statusText').textContent=walk?'SPACER':'BUDYNKI 3D';
+      $('tipText').textContent=walk?'Joystick: idź • palec: rozglądaj się • dotknij budynku':'Dotknij budynku, aby sprawdzić liczbę pięter';
+      closeInfo();
+      clearStick();
+      if(walk){
+        setPlayer(map.getCenter());
+        player.heading=(90-map.getBearing())*Math.PI/180;
+        player.tilt=0;
+        map.dragPan.disable();map.dragRotate.disable();map.touchZoomRotate.disable();map.doubleClickZoom.disable();map.scrollZoom.disable();
+        drawWalk();
+      }else{
+        const center=merc(player.x,player.y);
+        map.dragPan.enable();map.dragRotate.enable();map.touchZoomRotate.enable();map.doubleClickZoom.enable();map.scrollZoom.enable();
+        map.easeTo({center:[center.lng,center.lat],zoom:16.8,pitch:62,bearing:map.getBearing(),duration:500});
+      }
+    }
+    function jumpTo(key){
+      const p=POINTS[key];if(!p)return;
+      if(walk)switchMode(false);
+      closeInfo();
+      map.flyTo({center:p.coord,zoom:16.8,pitch:62,bearing:p.bearing,essential:true,duration:850});
+      player.heading=p.heading;
+    }
+    function showToast(message){
+      const el=$('toast'); el.textContent=message; el.style.display='block';
+      clearTimeout(toastTimeout);
+      toastTimeout=setTimeout(()=>el.style.display='none',3500);
+    }
+    function hideInfo(){ $('info').style.display='none';infoOpen=false; }
+    function closeInfo(){ selectedRequest++;hideInfo(); }
+    function getAllCoords(geometry){
+      if(!geometry)return [];
+      const coords=[];
+      const visit=(v)=>{if(Array.isArray(v)&&typeof v[0]==='number'&&typeof v[1]==='number'){coords.push(v);return;}if(Array.isArray(v))for(const child of v)visit(child);};
+      visit(geometry.coordinates);return coords;
+    }
+    function centerOf(geometry,fallBack){
+      const pts=getAllCoords(geometry);
+      if(!pts.length)return [fallBack.lng,fallBack.lat];
+      let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+      for(const [x,y] of pts){minX=Math.min(x,minX);maxX=Math.max(x,maxX);minY=Math.min(y,minY);maxY=Math.max(y,maxY);}
+      return [(minX+maxX)/2,(minY+maxY)/2];
+    }
+    const floatTag=(tag)=>{
+      if(typeof tag!=='string'&&typeof tag!=='number')return null;
+      const v=String(tag).trim().replace(/\s*m$/i,'').replace(',','.');
+      if(!/^\d+(\.\d+)?$/.test(v))return null;
+      const n=Number(v);return Number.isFinite(n)&&n>0&&n<1500?n:null;
+    };
+    const floorsTag=(tag)=>{
+      const n=floatTag(tag);return n!==null&&n<=250?n:null;
+    };
+    function formatFloors(n){return Number.isInteger(n)?String(n):n.toLocaleString('pl-PL',{maximumFractionDigits:1});}
+    function renderStart(feature){
+      const props=feature.properties||{};
+      const height=floatTag(props.render_height);
+      $('buildingName').textContent='Budynek';
+      $('floors').textContent='Sprawdzam…';
+      $('floorSource').textContent='Odczyt poziomów z OpenStreetMap';
+      $('height').textContent=height===null?'—':'≈ '+Math.round(height)+' m';
+      $('heightSource').textContent='Orientacyjna wysokość bryły';
+      $('detailNote').textContent='Szukam informacji o liczbie pięter tego budynku…';
+      $('osmLink').style.display='none';
+      $('info').style.display='block';infoOpen=true;
+      return height;
+    }
+    function finaliseMissing(height,why){
+      if(height!==null){
+        const estimate=Math.max(1,Math.round(height/3.2));
+        $('floors').textContent='≈ '+estimate;
+        $('floorSource').textContent='Szacunek z wysokości, nie potwierdzona liczba pięter';
+      }else{
+        $('floors').textContent='Brak danych';
+        $('floorSource').textContent='Brak informacji o liczbie pięter';
+      }
+      $('detailNote').textContent=why;
+    }
+    function contains(lon,lat,geometry){
+      if(!Array.isArray(geometry)||geometry.length<3)return false;
+      let inside=false;
+      for(let i=0,j=geometry.length-1;i<geometry.length;j=i++){
+        const a=geometry[i],b=geometry[j];
+        if((a.lat>lat)!=(b.lat>lat) && lon<(b.lon-a.lon)*(lat-a.lat)/(b.lat-a.lat)+a.lon)inside=!inside;
+      }
+      return inside;
+    }
+    function distanceMeters(a,b){
+      const lat=(a[1]+b[1])*Math.PI/360;
+      return Math.hypot((a[0]-b[0])*111320*Math.cos(lat),(a[1]-b[1])*111320);
+    }
+    function chooseOSM(elements,point){
+      let best=null,bestScore=Infinity;
+      for(const obj of elements){
+        const ring=obj.geometry;
+        if(!Array.isArray(ring)||ring.length<3||!obj.tags)continue;
+        // Centroid fallback; inside a footprint is the strongest match.
+        let lon=0,lat=0;
+        for(const p of ring){lon+=p.lon;lat+=p.lat;}
+        const c=[lon/ring.length,lat/ring.length];
+        const d=distanceMeters(point,c);
+        const inside=contains(point[0],point[1],ring);
+        const score=inside?d*0.02:d+50;
+        if(score<bestScore){bestScore=score;best=obj;}
+      }
+      return bestScore<125?best:null;
+    }
+    async function requestOSM(point,signal){
+      const lat=point[1].toFixed(6),lon=point[0].toFixed(6);
+      // Only a small nearby area is requested when the user chooses a building.
+      const q=`[out:json][timeout:12];(way["building"](around:85,${lat},${lon});way["building:part"](around:85,${lat},${lon}););out geom;`;
+      const servers=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+      let lastError;
+      for(const server of servers){
+        if(signal.aborted)throw new DOMException('Anulowano','AbortError');
+        const localController=new AbortController();
+        const onAbort=()=>localController.abort();
+        signal.addEventListener('abort',onAbort,{once:true});
+        const timeout=setTimeout(()=>localController.abort(),10000);
+        try{
+          const response=await fetch(server+'?data='+encodeURIComponent(q),{
+            signal:localController.signal,headers:{'Accept':'application/json'}
+          });
+          if(!response.ok)throw new Error('HTTP '+response.status);
+          const json=await response.json();
+          if(!Array.isArray(json.elements))throw new Error('Niepoprawne dane OSM');
+          return json.elements;
+        }catch(error){if(signal.aborted)throw error;lastError=error;}
+        finally{clearTimeout(timeout);signal.removeEventListener('abort',onAbort);}
+      }
+      throw lastError||new Error('Brak połączenia z bazą budynków');
+    }
+    let controller=null;
+    async function selectBuilding(at){
+      if(!ready)return;
+      const candidates=map.queryRenderedFeatures(at,{layers:[EXTRUSION]});
+      if(!candidates.length){ showToast('Dotknij bryły budynku 3D, aby wyświetlić piętra.');return; }
+      const feature=candidates[0];
+      const center=centerOf(feature.geometry,map.unproject(at));
+      if(controller)controller.abort();controller=new AbortController();
+      const token=++selectedRequest;
+      const tileHeight=renderStart(feature);
+      try{
+        const elements=await requestOSM(center,controller.signal);
+        if(token!==selectedRequest)return;
+        const entry=chooseOSM(elements,center);
+        if(!entry){finaliseMissing(tileHeight,'Nie znaleziono pewnego dopasowania budynku w OpenStreetMap. Ewentualna liczba pięter jest tylko oszacowaniem.');return;}
+        const tags=entry.tags||{};
+        const count=floorsTag(tags['building:levels']);
+        const measuredHeight=floatTag(tags.height);
+        $('buildingName').textContent=tags.name || ((tags['addr:street'] && tags['addr:housenumber']) ? `${tags['addr:street']} ${tags['addr:housenumber']}` : 'Budynek');
+        if(count!==null){
+          $('floors').textContent=formatFloors(count);
+          $('floorSource').textContent='Rzeczywisty wpis „building:levels” w OSM';
+          $('detailNote').textContent='Liczba kondygnacji nadziemnych według danych społeczności OpenStreetMap. Dane mogą być niepełne lub nieaktualne.';
+        }else{
+          finaliseMissing(tileHeight,'OpenStreetMap nie ma wpisanej liczby pięter dla tego budynku. Ewentualna wartość jest oszacowaniem na podstawie wysokości.');
+        }
+        if(measuredHeight!==null){
+          $('height').textContent=measuredHeight+' m';
+          $('heightSource').textContent='Wysokość podana w OpenStreetMap';
+        }
+        if(entry.type==='way'&&Number.isInteger(entry.id)){
+          $('osmLink').href=`https://www.openstreetmap.org/way/${entry.id}`;
+          $('osmLink').style.display='inline-block';
+        }
+      }catch(error){
+        if(token!==selectedRequest || error.name==='AbortError')return;
+        finaliseMissing(tileHeight,'Nie udało się pobrać szczegółowych danych o piętrach. Mapa 3D nadal działa; spróbuj ponownie później.');
+        console.warn('Dane OpenStreetMap:',error);
+      }
+    }
+    map.on('load',()=>{
+      try{
+        const style=map.getStyle();
+        const src=map.getSource('openmaptiles')?'openmaptiles':map.getSource('openfreemap')?'openfreemap':null;
+        if(!src)throw new Error('Brak źródła building w stylu mapy');
+        // Hide 3D style layers before adding our own consistently colored extrusions.
+        for(const layer of style.layers){if(layer.type==='fill-extrusion')map.setLayoutProperty(layer.id,'visibility','none');}
+        const below=style.layers.find(l=>l.type==='symbol'&&l.layout&&l.layout['text-field'])?.id;
+        // Subtle contours of building footprints remain visible in angled 3D view.
+        map.addLayer({id:'frankfurt-outline',type:'line',source:src,'source-layer':'building',minzoom:14.5,
+          filter:['!=',['get','hide_3d'],true],paint:{'line-color':'#334e60','line-width':1.2,'line-opacity':.75}},below);
+        map.addLayer({id:EXTRUSION,type:'fill-extrusion',source:src,'source-layer':'building',minzoom:14.5,
+          filter:['!=',['get','hide_3d'],true],
+          paint:{'fill-extrusion-color':['interpolate',['linear'],['to-number',['get','render_height'],9],0,'#e2e9ee',18,'#b4c9d3',70,'#81a9bc',170,'#5d93ad',350,'#386d91'],
+            'fill-extrusion-height':['max',3,['to-number',['get','render_height'],9]],
+            'fill-extrusion-base':['max',0,['to-number',['get','render_min_height'],0]],
+            'fill-extrusion-opacity':.97,'fill-extrusion-vertical-gradient':true}},below);
+        ready=true;
+        $('loading').style.display='none';
+      }catch(error){
+        $('loadingText').textContent='Nie udało się włączyć budynków 3D. Sprawdź połączenie i odśwież stronę.';
+        console.error(error);
+      }
+    });
+    map.on('error',e=>{
+      console.warn('Mapa:',e.error||e);
+      if(!ready){
+        const msg=String(e.error?.message||e.error||'');
+        if(/style|source|fetch|network|404|Failed to load/i.test(msg)){
+          $('loadingText').textContent='Nie można pobrać danych mapowych. Sprawdź Internet i ustawienia ochrony przeglądarki.';
+        }
+      }
+    });
+    map.on('click',e=>{if(!walk)selectBuilding(e.point);});
+    $('walkBtn').addEventListener('click',()=>switchMode(true));
+    $('backBtn').addEventListener('click',()=>switchMode(false));
+    $('northBtn').addEventListener('click',()=>map.easeTo({bearing:0,duration:500}));
+    $('resetBtn').addEventListener('click',()=>{$('place').value='roemer';jumpTo('roemer');});
+    $('place').addEventListener('change',e=>jumpTo(e.target.value));
+    $('closeInfo').addEventListener('click',closeInfo);
+    $('speedBtn').addEventListener('click',()=>{fast=!fast;$('speedBtn').textContent=fast?'⚡ Bieg':'⚡ Szybciej';});
+    $('helpBtn').addEventListener('click',()=>{$('help').style.display='flex';clearStick();});
+    $('closeHelp').addEventListener('click',()=>{$('help').style.display='none';});
+    $('help').addEventListener('click',e=>{if(e.target===$('help'))$('help').style.display='none';});
+    // First-person look control: a short stationary tap selects a rendered 3D building.
+    const lookEl=$('look');let px=0,py=0;
+    lookEl.addEventListener('pointerdown',e=>{
+      if(!walk)return;e.preventDefault();lookPointer=e.pointerId;px=e.clientX;py=e.clientY;
+      lookStart={x:px,y:py};lookMoved=false;lookEl.setPointerCapture(e.pointerId);
+    });
+    lookEl.addEventListener('pointermove',e=>{
+      if(e.pointerId!==lookPointer||!walk)return;
+      const dx=e.clientX-px,dy=e.clientY-py;px=e.clientX;py=e.clientY;
+      if(Math.hypot(e.clientX-lookStart.x,e.clientY-lookStart.y)>10)lookMoved=true;
+      if(lookMoved){player.heading-=dx*.0065;player.tilt=Math.min(.5,Math.max(-.55,player.tilt-dy*.0036));drawWalk();}
+    });
+    lookEl.addEventListener('pointerup',e=>{
+      if(e.pointerId!==lookPointer)return;
+      if(!lookMoved&&walk){
+        const r=map.getCanvas().getBoundingClientRect();
+        selectBuilding({x:e.clientX-r.left,y:e.clientY-r.top});
+      }
+      lookPointer=null;lookStart=null;
+    });
+    lookEl.addEventListener('pointercancel',()=>{lookPointer=null;lookStart=null;});
+    // Touch joystick; UI controls are separate from the look layer.
+    const joy=$('joy'),knob=$('knob');
+    function clearStick(){stickPointer=null;joyX=0;joyY=0;knob.style.transform='translate(-50%,-50%)';}
+    function moveStick(e){
+      const r=joy.getBoundingClientRect(),radius=r.width*.31;
+      let x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;
+      const len=Math.hypot(x,y);if(len>radius){x=x/len*radius;y=y/len*radius;}
+      joyX=x/radius;joyY=-y/radius;
+      knob.style.transform=`translate(calc(-50% + ${x}px),calc(-50% + ${y}px))`;
+    }
+    joy.addEventListener('pointerdown',e=>{if(!walk)return;e.preventDefault();stickPointer=e.pointerId;joy.setPointerCapture(e.pointerId);moveStick(e);});
+    joy.addEventListener('pointermove',e=>{if(e.pointerId===stickPointer)moveStick(e);});
+    joy.addEventListener('pointerup',e=>{if(e.pointerId===stickPointer)clearStick();});
+    joy.addEventListener('pointercancel',clearStick);
+    joy.addEventListener('lostpointercapture',clearStick);
+    addEventListener('keydown',e=>{if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft'].includes(e.code)){pressed.add(e.code);if(walk)e.preventDefault();}});
+    addEventListener('keyup',e=>pressed.delete(e.code));
+    addEventListener('blur',()=>{pressed.clear();clearStick();});
+    function animate(now){
+      const dt=Math.min(.06,(now-lastTime)/1000);lastTime=now;
+      if(walk&&ready){
+        const turn=(pressed.has('KeyD')||pressed.has('ArrowRight')?1:0)-(pressed.has('KeyA')||pressed.has('ArrowLeft')?1:0);
+        if(turn)player.heading-=turn*1.5*dt;
+        let fwd=joyY+(pressed.has('KeyW')||pressed.has('ArrowUp')?1:0)-(pressed.has('KeyS')||pressed.has('ArrowDown')?1:0);
+        let side=joyX;const len=Math.hypot(fwd,side);
+        if(len>1){fwd/=len;side/=len;}
+        if(len>.01||turn){
+          const speed=(fast||pressed.has('ShiftLeft'))?8:3.2;
+          player.x+=speed*dt*(fwd*Math.cos(player.heading)+side*Math.sin(player.heading));
+          player.y+=speed*dt*(fwd*Math.sin(player.heading)-side*Math.cos(player.heading));
+          drawWalk();
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+    setTimeout(()=>{
+      if(!ready && $('loading').style.display!=='none' && !$('loading').querySelector('button')){
+        $('loadingText').textContent='Mapa ładuje się długo. Sprawdź Internet lub wyłącz Brave Shields i odśwież stronę.';
+      }
+    },20000);
+  </script>
+</body>
+</html>
