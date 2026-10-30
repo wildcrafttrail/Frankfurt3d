@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b1c29">
+<meta name="description" content="Frankfurt 3D Explorer: budynki 3D, dokładne obrysy OpenStreetMap, piętra, wejścia, spacer po mieście.">
+<title>Frankfurt 3D Explorer — dokładne budynki i piętra</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<style>
+:root{--bg:#0d1d2a;--panel:rgba(11,26,39,.94);--line:#ffffff2a;--ink:#f0f8fd;--muted:#a5bdca;--mint:#72ead0;--gold:#e8ba76;font:14px/1.4 system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;margin:0;overflow:hidden}body{background:#183344;overscroll-behavior:none}button,select{font:inherit}button{cursor:pointer}button:focus-visible,select:focus-visible{outline:3px solid var(--mint);outline-offset:2px}button:disabled{opacity:.5;cursor:not-allowed}
+#map{position:fixed;inset:0;background:linear-gradient(#b6d6df,#d9e5e6)}
+#look{display:none;position:fixed;inset:0;z-index:3;touch-action:none}
+#ui{position:fixed;inset:0;pointer-events:none;z-index:8}#ui button,#ui select,#ui .joystick,#ui a{pointer-events:auto}
+.glass{background:var(--panel);border:1px solid var(--line);box-shadow:0 8px 26px #06111d44;backdrop-filter:blur(14px)}
+.top{position:absolute;top:calc(env(safe-area-inset-top) + 10px);left:10px;right:10px;display:flex;gap:8px;align-items:stretch;justify-content:space-between}
+.brand{padding:10px 13px;border-radius:17px;min-width:0;flex:1;max-width:330px}.eyebrow{font-size:9px;color:var(--mint);font-weight:900;letter-spacing:.15em}.brand h1{font-size:20px;letter-spacing:-.04em;line-height:1.05;margin:2px 0 3px}.brand h1 b{color:var(--gold)}.brand p{font-size:10px;color:#bcd0db;margin:0}.top-right{display:flex;align-items:start;gap:7px}.square{width:44px;height:44px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:850;font-size:18px}
+.panel{position:absolute;top:calc(env(safe-area-inset-top) + 91px);left:10px;width:min(340px,calc(100vw - 20px));padding:10px;border-radius:18px;transition:transform .2s,opacity .2s}
+.segment{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.segment button{height:43px;border:1px solid #ffffff25;border-radius:12px;background:#1c3245;color:#e7f4fb;font-size:12px;font-weight:800}.segment button.active{background:var(--gold);color:#192d3a;border-color:var(--gold)}
+.select-row{display:flex;gap:7px;margin-top:9px}.select-row select{min-width:0;flex:1;height:43px;border-radius:12px;background:#1d3447;border:1px solid #ffffff2b;color:#f0f8fd;padding:0 10px;font-size:12px}.smallbtn{height:43px;border:1px solid #ffffff29;background:#1b3846;color:white;border-radius:12px;padding:0 13px;font-size:12px;font-weight:850}
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.action-row button{min-width:0;min-height:40px;border:1px solid #ffffff29;border-radius:11px;padding:7px 8px;background:#223b4d;color:#eef8fa;font-size:11px;font-weight:800}.action-row button.on{background:#23786d;border-color:#70edcf77}
+.caption{color:var(--muted);font-size:10px;margin:10px 2px 0;line-height:1.4}.legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 2px 2px}.legend-item{font-size:9px;color:#d4e6eb;display:flex;align-items:center;gap:4px}.swatch{width:10px;height:10px;border-radius:3px;display:inline-block}
+#status{position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:66px;border-radius:18px;padding:5px 8px;min-width:0;font-size:10px;color:#e7fbf6;pointer-events:none;display:none}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mint);margin-right:4px}
+.side{position:absolute;right:10px;top:calc(env(safe-area-inset-top) + 114px);display:flex;flex-direction:column;gap:7px}.side button{width:44px;height:44px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:white;font-size:20px;font-weight:700}
+.bottom{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 17px);display:flex;justify-content:space-between;gap:7px;align-items:end}.hint{border-radius:12px;padding:8px 10px;font-size:10px;max-width:min(250px,70%);color:#d7e9ec}.bottom button{padding:11px 12px;min-height:44px;border-radius:13px;border:1px solid #ffffff33;background:var(--panel);color:#f0f8fd;font-size:11px;font-weight:800}
+#info{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 10px);max-width:460px;margin:0 auto;padding:16px;border-radius:20px;display:none;max-height:min(75vh,510px);overflow-y:auto}.info-top{display:flex;justify-content:space-between;align-items:start;gap:8px}.info-top h2{font-size:18px;margin:4px 0 5px;line-height:1.23;overflow-wrap:anywhere}.close{width:35px;height:35px;flex:none;border:0;background:#ffffff16;border-radius:10px;color:white;font-size:20px}.address{font-size:11px;color:#bdd1dd;margin-bottom:12px}.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.metric{border-radius:13px;border:1px solid #ffffff1b;background:#ffffff0b;padding:10px}.metric span{display:block;color:#a7c4ce;font-size:9px;letter-spacing:.07em;font-weight:850}.metric strong{font-size:20px;line-height:1.2;display:block;margin:4px 0}.metric small{font-size:10px;color:#bfced7;line-height:1.3}.meta{font-size:11px;color:#d0e0e8;line-height:1.5;margin:10px 0}.info-link{display:inline-block;color:#87efdc;font-size:12px;font-weight:750;text-decoration:underline;margin-top:4px}
+#toast{position:absolute;top:calc(env(safe-area-inset-top) + 91px);left:50%;transform:translateX(-50%);border-radius:11px;font-size:11px;padding:10px 12px;text-align:center;max-width:calc(100vw - 30px);display:none;min-width:180px}
+#loading{position:fixed;inset:0;z-index:30;background:linear-gradient(145deg,#0b1928,#274e60);display:grid;place-items:center;padding:25px;text-align:center}.load-box{max-width:360px}.load-icon{font-size:38px;color:var(--mint)}#loading h2{font-size:26px;margin:5px 0 9px}#loading p{font-size:13px;color:#d1e3ea;line-height:1.6}.spinner{height:30px;width:30px;border-radius:50%;border:3px solid #ffffff44;border-top-color:var(--mint);animation:spin 1s linear infinite;margin:22px auto}@keyframes spin{to{transform:rotate(360deg)}}#retry{background:var(--mint);color:#0b2730;border:0;border-radius:11px;padding:13px 20px;font-size:13px;font-weight:850;display:none}
+#help{position:fixed;inset:0;z-index:35;display:none;justify-content:center;align-items:center;padding:16px;background:#04101ce5}.help-card{max-width:420px;padding:20px;border-radius:20px}.help-card h2{font-size:20px;margin:0 0 12px}.help-card p{font-size:12px;line-height:1.55;color:#cfe1e9}.help-card button{width:100%;border:0;border-radius:11px;padding:12px;background:var(--mint);font-weight:900;color:#112a32}
+.joybar{position:absolute;bottom:calc(env(safe-area-inset-bottom) + 18px);left:10px;right:10px;display:none;align-items:end;justify-content:space-between}.joystick{width:118px;height:118px;border-radius:50%;background:#102b3bcf;border:2px solid #c5e7ee69;box-shadow:0 0 28px #0007;position:relative;touch-action:none}.joystick:before,.joystick:after{content:"";position:absolute;background:#ffffff38;pointer-events:none}.joystick:before{height:1px;left:14px;right:14px;top:50%}.joystick:after{width:1px;top:14px;bottom:14px;left:50%}.knob{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:49px;height:49px;border-radius:50%;background:#4cbaa8;border:2px solid #c9ffed;color:#0d3433;font-weight:950;font-size:23px;display:grid;place-items:center;pointer-events:none}.joyhint{font-size:9px;letter-spacing:.1em;text-align:center;font-weight:800;margin-top:5px;text-shadow:0 1px 4px #000}.walkBtns{display:flex;flex-direction:column;gap:8px}.walkBtns button{padding:12px 13px;border:1px solid #ffffff30;border-radius:12px;background:var(--panel);color:white;font-weight:850;font-size:11px}
+.walk #look{display:block}.walk .joybar{display:flex}.walk .bottom,.walk .side{display:none}.walk .panel{top:calc(env(safe-area-inset-top) + 81px);width:min(310px,calc(100vw - 20px))}.walk .panel .action-row,.walk .panel .legend,.walk .panel .caption{display:none}.walk #info{bottom:calc(env(safe-area-inset-bottom) + 160px);max-height:45vh}.collapsed .panel{transform:translateY(-160%);opacity:0;pointer-events:none}.collapsed .panel *{pointer-events:none}
+.maplibregl-ctrl-bottom-right{bottom:0!important}.maplibregl-ctrl-attrib{font-size:9px!important}
+@media(max-width:390px){.brand h1{font-size:17px}.brand p{font-size:9px}.panel{width:min(315px,calc(100vw - 20px))}.side{top:calc(env(safe-area-inset-top) + 280px)}.legend{gap:4px}.legend-item{font-size:8px}}
+@media(max-height:610px){.caption,.legend{display:none}.panel{max-height:calc(100vh - 160px);overflow:auto}.side{top:calc(env(safe-area-inset-top) + 108px)}.joystick{width:92px;height:92px}.walk #info{bottom:calc(env(safe-area-inset-bottom) + 122px)}}
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Interaktywna mapa Frankfurtu z budynkami 3D"></div><div id="look" aria-label="Przesuwaj palcem, aby się rozejrzeć"></div>
+<div id="ui">
+  <header class="top"><div class="brand glass"><div class="eyebrow">FRANKFURT AM MAIN · 3D</div><h1>EXPLORER <b>3.0</b></h1><p>Dokładne obrysy • piętra • części budynków</p></div><div class="top-right"><button class="square" id="collapseBtn" aria-label="Pokaż lub ukryj panel">☰</button><button class="square" id="helpBtn" aria-label="Pomoc">?</button></div></header>
+  <div class="panel glass" id="panel">
+    <div class="segment"><button class="active" id="mode3d">◩ 3D</button><button id="mode2d">▦ 2D</button><button id="modeWalk">♙ Ulica</button></div>
+    <div class="select-row"><select id="place" aria-label="Wybierz punkt Frankfurtu"><option value="roemer">Römerberg / Altstadt</option><option value="hauptwache">Hauptwache / Zeil</option><option value="alteoper">Alte Oper</option><option value="hauptbahnhof">Hauptbahnhof</option><option value="maintower">Main Tower / Bankenviertel</option><option value="ezb">EZB / Ostend</option><option value="sachsenhausen">Sachsenhausen</option><option value="messe">Messe Frankfurt</option></select><button class="smallbtn" id="goBtn">Idź</button></div>
+    <div class="action-row"><button class="on" id="detailsBtn">⌖ Dokładne obrysy</button><button class="on" id="entrancesBtn">⌂ Wejścia</button></div>
+    <p class="caption" id="detailsStatus">Budynki 3D: dane mapowe. Dokładne dane OSM dla okolicy są pobierane na żądanie.</p>
+    <div class="legend"><span class="legend-item"><i class="swatch" style="background:#e8bf86"></i>1–3</span><span class="legend-item"><i class="swatch" style="background:#a5d3dc"></i>4–7</span><span class="legend-item"><i class="swatch" style="background:#5ab4bc"></i>8–15</span><span class="legend-item"><i class="swatch" style="background:#6a91c4"></i>16+</span><span class="legend-item"><i class="swatch" style="background:#cdd5d7"></i>brak danych</span></div>
+  </div>
+  <div class="side"><button id="zoomIn" aria-label="Przybliż">+</button><button id="zoomOut" aria-label="Oddal">−</button><button id="north" aria-label="Północ">⌖</button></div>
+  <div class="bottom"><div class="hint glass" id="hint">Dotknij budynku, aby zobaczyć liczbę pięter. Szczegółowe dane w promieniu ~230 m.</div><button id="refreshDetails">↻ Szczegóły okolicy</button></div>
+  <div class="joybar"><div><div class="joystick" id="joy"><div class="knob" id="knob">✣</div></div><div class="joyhint">PORUSZAJ SIĘ</div></div><div class="walkBtns"><button id="runBtn">⚡ Bieg: WYŁ.</button><button id="walkReturn">▣ Mapa 3D</button></div></div>
+  <section id="info" class="glass" aria-live="polite" aria-label="Szczegóły budynku"><div class="info-top"><div><div class="eyebrow">INFORMACJE O BUDYNKU</div><h2 id="buildingName">Budynek</h2></div><button id="closeInfo" class="close" aria-label="Zamknij">×</button></div><div id="address" class="address">Frankfurt am Main</div><div class="metrics"><div class="metric"><span>PIĘTRA</span><strong id="floors">—</strong><small id="floorsSource">Dane OpenStreetMap</small></div><div class="metric"><span>WYSOKOŚĆ</span><strong id="height">—</strong><small id="heightSource">Wysokość bryły</small></div></div><p id="extraInfo" class="meta"></p><a id="osmLink" class="info-link" href="https://www.openstreetmap.org" target="_blank" rel="noopener noreferrer">Zobacz obiekt w OpenStreetMap ↗</a></section>
+  <div id="toast" class="glass" role="status" aria-live="polite"></div>
+</div>
+<div id="loading"><div class="load-box"><div class="load-icon">▧</div><h2>Frankfurt 3D</h2><p id="loadStatus">Uruchamiam silnik i szczegółowe budynki…</p><div class="spinner" id="spinner"></div><button id="retry" onclick="location.reload()">Spróbuj ponownie</button></div></div>
+<div id="help"><div class="help-card glass"><h2>Jak korzystać z mapy?</h2><p><b>3D / 2D:</b> przybliżaj dwoma palcami i klikaj budynki. Ciemne obrysy pokazują rzeczywiste kształty z OpenStreetMap. Kolory odpowiadają liczbie pięter, jeśli jest znana.</p><p><b>Szczegóły okolicy:</b> pobierane dla wybranego miejsca w promieniu około 230 m. Dokładne części brył i wejścia pojawiają się tylko tam, gdzie istnieją w OSM. Przycisk ↻ pobiera kolejną okolicę.</p><p><b>Tryb Ulica:</b> joystick służy do spaceru, przesunięcie palcem obraca widok. Po dotknięciu budynku zobaczysz piętra, wysokość i źródło danych. Po wybraniu budynku linie pokazują podział na kondygnacje (schematycznie).</p><p><b>Dokładność:</b> piętra oznaczone „OSM” są wpisane przez społeczność; „≈” to szacunek z wysokości. Dachy są uproszczone, a nie fotogrametryczne. Potrzebny jest Internet i WebGL.</p><button id="closeHelp">Rozumiem</button></div></div>
+<script>
+'use strict';
+// MapLibre v5 używa pojedynczego klasycznego pliku JS (bez osobnego ESM worker v6).
+const CDN_URLS=[
+  'https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js',
+  'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js',
+  'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js'
+];
+const $=id=>document.getElementById(id);
+function loadScript(src){return new Promise((resolve,reject)=>{let done=false;const s=document.createElement('script');s.src=src;s.async=true;s.crossOrigin='anonymous';const to=setTimeout(()=>finish(false,new Error('Przekroczony czas pobierania')),10500);function finish(ok,err){if(done)return;done=true;clearTimeout(to);s.onload=s.onerror=null;if(!ok){s.remove();reject(err);}else resolve();}s.onload=()=>finish(true);s.onerror=()=>finish(false,new Error('Błąd pobierania'));document.head.append(s);});}
+function fatal(message){$('loadStatus').textContent=message;$('spinner').style.display='none';$('retry').style.display='inline-block';}
+async function init(){
+  let libLoaded=false;
+  for(let i=0;i<CDN_URLS.length;i++){
+    $('loadStatus').textContent=i?'Serwer główny niedostępny — próbuję zapasowego…':'Ładowanie silnika mapy 3D…';
+    try{await loadScript(CDN_URLS[i]);if(window.maplibregl?.Map){libLoaded=true;break;}}catch(e){console.warn('Biblioteka 3D:',e.message);}
+  }
+  if(!libLoaded){fatal('Nie można pobrać biblioteki. Spróbuj Chrome lub wyłącz Brave Shields dla tej strony, a następnie odśwież.');return;}
+  const gl=window.maplibregl;
+  if(typeof gl.supported==='function'&&!gl.supported()){fatal('Na tym urządzeniu przeglądarka nie udostępnia WebGL. Sprawdź Chrome i akcelerację sprzętową.');return;}
+  try{startMap(gl);}catch(e){console.error(e);fatal('Błąd uruchomienia mapy: '+e.message);}
+}
+const PLACES={
+ roemer:{c:[8.68225,50.11038],bearing:-25},hauptwache:{c:[8.67902,50.11412],bearing:-20},
+ alteoper:{c:[8.67155,50.11568],bearing:-24},hauptbahnhof:{c:[8.66371,50.10742],bearing:0},
+ maintower:{c:[8.67258,50.11246],bearing:-30},ezb:{c:[8.70296,50.10952],bearing:-35},
+ sachsenhausen:{c:[8.68692,50.10435],bearing:15},messe:{c:[8.64538,50.11075],bearing:-22}
+};
+const EMPTY={type:'FeatureCollection',features:[]};
+const API=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const RADIUS=230;
+const floatVal=v=>{if(v==null)return null;let s=String(v).trim().replace(',','.').replace(/\s*m$/i,'');let n=Number(s);return /^(\d+)(\.\d+)?$/.test(s)&&Number.isFinite(n)&&n>=0&&n<1500?n:null;};
+function floorVal(v){let n=floatVal(v);return n!=null&&n>0&&n<=250?n:null;}
+function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+function round(n,d=0){return n.toLocaleString('pl-PL',{maximumFractionDigits:d});}
+function distance(a,b){let lat=(a[1]+b[1])*Math.PI/360;return Math.hypot((a[0]-b[0])*111320*Math.cos(lat),(a[1]-b[1])*111320);}
+function eqPoint(a,b){return a&&b&&a[0]===b[0]&&a[1]===b[1];}
+function finishRing(arr){if(!Array.isArray(arr)||arr.length<3)return null;const coords=arr.filter(o=>Number.isFinite(o?.lon)&&Number.isFinite(o?.lat)).map(o=>[o.lon,o.lat]);if(coords.length<3)return null;if(!eqPoint(coords[0],coords.at(-1)))coords.push(coords[0]);return coords.length>=4?coords:null;}
+function calcCenter(ring){let x=0,y=0,n=ring.length-1;for(let i=0;i<n;i++){x+=ring[i][0];y+=ring[i][1];}return [x/n,y/n];}
+function inside(pt,ring){let yes=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){let a=ring[i],b=ring[j];if((a[1]>pt[1])!==(b[1]>pt[1])&&pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0])yes=!yes;}return yes;}
+function expandRing(ring,meters){const center=calcCenter(ring), cos=Math.cos(center[1]*Math.PI/180);return ring.map(p=>{let dx=(p[0]-center[0])*111320*cos,dy=(p[1]-center[1])*111320;let d=Math.hypot(dx,dy);if(d<1)return p;let factor=(d+meters)/d;return [center[0]+dx*factor/(111320*cos),center[1]+dy*factor/111320];});}
+function getGeo(obj){if(obj.type==='way'){const ring=finishRing(obj.geometry);return ring?{type:'Polygon',coordinates:[ring]}:null;}
+ if(obj.type==='relation'){
+   const outers=[],inners=[];
+   for(const m of obj.members||[]){if(m.type!=='way')continue;const ring=finishRing(m.geometry);if(!ring)continue;(m.role==='outer'?outers:inners).push(ring);}
+   if(!outers.length)return null;
+   const polys=outers.map(r=>[r]);for(const hole of inners){let pt=calcCenter(hole);let i=outers.findIndex(r=>inside(pt,r));if(i>=0)polys[i].push(hole);}
+   return polys.length===1?{type:'Polygon',coordinates:polys[0]}:{type:'MultiPolygon',coordinates:polys};
+ }
+ return null;}
+function polygons(geom){if(!geom)return[];return geom.type==='Polygon'?[geom.coordinates]:geom.type==='MultiPolygon'?geom.coordinates:[];}
+function centerOfGeo(geom){const poly=polygons(geom)[0];return poly?calcCenter(poly[0]):null;}
+function hasGeo(geom,p){return polygons(geom).some(poly=>inside(p,poly[0])&&!poly.slice(1).some(h=>inside(p,h)));}
+function buildingMetrics(tags){
+ const floors=floorVal(tags['building:levels'])??floorVal(tags['building:part:levels']);
+ const actualH=floatVal(tags.height),roofH=floatVal(tags['roof:height']);
+ const roofLevels=floorVal(tags['roof:levels']);
+ let h=actualH??(floors!=null?floors*3.15+(roofH??(roofLevels?roofLevels*2.7:0)):null);
+ let estimated=false;
+ if(h==null){h=10;estimated=true;}else estimated=actualH==null;
+ let baseH=floatVal(tags.min_height);
+ if(baseH==null){let minLvl=floatVal(tags['building:min_level']);baseH=minLvl!=null?minLvl*3.15:0;}
+ return {floors,realH:actualH,height:clamp(h,3,650),heightEstimated:estimated,base:clamp(baseH,0,620),roofH,roofShape:tags['roof:shape']||null};
+}
+function toFeature(obj){const tags=obj.tags||{};if(!tags.building&&!tags['building:part'])return null;const geom=getGeo(obj);if(!geom)return null;const m=buildingMetrics(tags);if(m.height<=m.base)m.height=m.base+3;return {type:'Feature',id:obj.id,geometry:geom,properties:{osmType:obj.type,osmId:obj.id,kind:tags['building:part']?'part':'whole',name:tags.name||'',street:tags['addr:street']||'',number:tags['addr:housenumber']||'',type:tags['building:part']||tags.building||'',floors:m.floors??-1,height:m.height,realH:m.realH??-1,approxH:m.heightEstimated?1:0,base:m.base,roof:m.roofShape||'',roofH:m.roofH??-1,levelsBelow:tags['building:levels:underground']||'',source:'OSM'}};}
+function osmDataToGeo(elements){const features=[],doors=[];const ids=new Set();for(const e of elements){if(e.type==='node'&&e.tags?.entrance){if(Number.isFinite(e.lon)&&Number.isFinite(e.lat))doors.push({type:'Feature',geometry:{type:'Point',coordinates:[e.lon,e.lat]},properties:{value:e.tags.entrance||'yes',ref:e.id}});continue;}
+  const f=toFeature(e);if(f&&!ids.has(`${e.type}-${e.id}`)){features.push(f);ids.add(`${e.type}-${e.id}`);}}
+ return {features,doors};}
+function colorExpr(){return ['case',['==',['get','floors'],-1],'#ccd6d8',['<=',['get','floors'],3],'#e8bf86',['<=',['get','floors'],7],'#a5d3dc',['<=',['get','floors'],15],'#5ab4bc','#6a91c4'];}
+function getPrettyName(p){return p.name||(p.street?`${p.street}${p.number?' '+p.number:''}`:(p.kind==='part'?'Część budynku':'Budynek'));}
+function featureGeoCoords(f){const g=f.geometry;if(!g)return null;return centerOfGeo(g);}
+function getMapPoint(f,fallback){return featureGeoCoords(f)||fallback;}
+function startMap(gl){
+  const model={gl,map:null,ready:false,mode:'3d',details:true,entrances:true,sourceId:null,selected:null,loadingDetail:false,detailData:[],doors:[],cache:[],lastCenter:null,lastRequestedAt:0,run:false,autoRequest:true,queued:null,requestController:null,loadingTime:null};
+  let lastToast=0,toastTimer=0,selectToken=0,detailToken=0;
+  const current=()=>model.map.getCenter();
+  const openToast=(message)=>{const now=Date.now();if(now-lastToast<400)return;lastToast=now;$('toast').textContent=message;$('toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.display='none',4000);};
+  function updateDetailStatus(label){$('detailsStatus').textContent=label;}
+  function setData(id,data){const s=model.map.getSource(id);if(s)s.setData(data);}
+  function clearBands(){setData('selected-bands',EMPTY);setData('selected-footprint',EMPTY);}
+  function hideInfo(){selectToken++;$('info').style.display='none';model.selected=null;clearBands();}
+  function showInfo(p){$('info').style.display='block';$('buildingName').textContent=getPrettyName(p);
+    $('address').textContent=(p.street?`${p.street} ${p.number||''} · `:'')+'Frankfurt am Main';
+    const f=p.floors>=0?p.floors:null;
+    let h=p.height;
+    $('floors').textContent=f!=null?round(f,1):(h?'≈ '+Math.max(1,Math.round(h/3.15)):'Brak danych');
+    $('floorsSource').textContent=f!=null?'Wpis building:levels w OpenStreetMap':h?'Szacunek z wysokości, niepotwierdzony':'Brak wpisu OSM';
+    $('height').textContent=p.realH>=0?round(p.realH,1)+' m':(h?'≈ '+round(h,1)+' m':'—');
+    $('heightSource').textContent=p.realH>=0?'Wysokość wpisana w OSM':p.approxH?'Wysokość przybliżona':'Wysokość z danych mapowych';
+    let parts=[];if(p.type&&p.type!=='yes')parts.push('Typ: '+p.type);if(p.kind==='part')parts.push('Osobna część budynku');if(p.roof)parts.push('Dach: '+p.roof);if(p.roofH>=0)parts.push('Wysokość dachu: '+round(p.roofH,1)+' m');
+    $('extraInfo').textContent=(parts.join(' · ')||'Bryła na podstawie obrysu budynku.')+' · Linie kondygnacji pokazują schematyczny podział wysokości.';
+    $('osmLink').href=p.osmType&&p.osmId?`https://www.openstreetmap.org/${p.osmType}/${p.osmId}`:'https://www.openstreetmap.org';
+  }
+  function drawBands(feature){clearBands();const f=feature,geom=f.geometry,p=f.properties;if(!geom||!p)return;
+    setData('selected-footprint',{type:'FeatureCollection',features:[{type:'Feature',geometry:geom,properties:{}}]});
+    const count=p.floors>0?Math.floor(p.floors):Math.max(1,Math.round((p.height-p.base)/3.15));
+    const step=(p.height-p.base)/count;if(step<=0||!Number.isFinite(step))return;
+    const maxBands=48,n=Math.min(count,maxBands),freq=Math.max(1,Math.ceil(count/maxBands));const output=[];
+    for(let level=1;level<count;level+=freq){const y=p.base+level*step;for(const poly of polygons(geom)){
+       if(poly.length===0)continue;const ring=expandRing(poly[0],.16);output.push({type:'Feature',geometry:{type:'Polygon',coordinates:[ring]},properties:{base:y-.065,top:y+.065}});
+    }}
+    setData('selected-bands',{type:'FeatureCollection',features:output});
+  }
+  function bestDetailsMatch(lngLat,geometry){const p=[lngLat.lng,lngLat.lat];let best=null,score=Infinity;
+     for(const f of model.detailData){const c=featureGeoCoords(f);if(!c)continue;const d=distance(p,c);const insideThis=hasGeo(f.geometry,p);let s=insideThis?d*.05:d+70;
+       if(geometry&&hasGeo(geometry,c))s-=15;
+       if(f.properties.kind==='part')s-=2;
+       if(s<score){score=s;best=f;}}
+     return score<135?best:null;
+  }
+  function chooseClickedFeature(f,clickPoint){const p=f.properties||{};if(p.osmId){model.selected=f;showInfo(p);drawBands(f);return true;}
+    const center=getMapPoint(f,clickPoint);const closest=bestDetailsMatch({lng:center[0],lat:center[1]},f.geometry);
+    if(closest){model.selected=closest;showInfo(closest.properties);drawBands(closest);return true;}
+    const rawH=floatVal(p.render_height)||floatVal(p.height);const estimated=rawH??10;
+    const faux={name:'Budynek — szczegóły do pobrania',street:'',number:'',kind:'whole',floors:-1,height:estimated,realH:-1,approxH:1,osmType:null,osmId:null};model.selected=null;showInfo(faux);
+    $('extraInfo').textContent='W tej lokalizacji nie mam jeszcze szczegółowego obrysu OSM. Wybierz „↻ Szczegóły okolicy”, a następnie dotknij budynku ponownie.';
+    $('osmLink').href='https://www.openstreetmap.org/#map=18/'+clickPoint[1]+'/'+clickPoint[0];
+    return false;
+  }
+  function clickAt(p){if(!model.ready)return;let f=[];try{
+      const layers=['detail-parts','detail-buildings','base-3d'].filter(id=>model.map.getLayer(id));
+      f=model.map.queryRenderedFeatures(p,{layers});
+    }catch(e){console.warn(e);}if(!f.length){openToast('Dotknij bryły lub zarysu budynku.');return;}
+    hideInfo();const obj=f[0];const click=model.map.unproject(p);
+    chooseClickedFeature(obj,[click.lng,click.lat]);
+  }
+  async function loadDetailArea(force=false){if(!model.ready||!model.details)return;
+     const center=current(),point=[center.lng,center.lat];
+     // Avoid flooding public Overpass with requests during pan/zoom.
+     if(model.loadingDetail){model.queued=point;return;}
+     if(!force&&model.lastCenter&&distance(point,model.lastCenter)<RADIUS*.70)return;
+     const cached=model.cache.find(c=>distance(point,c.center)<70&&Date.now()-c.at<30*60*1000);
+     if(cached&&!force){applyDetail(cached.data,cached.center);return;}
+     if(!force&&Date.now()-model.lastRequestedAt<15000){updateDetailStatus('Przesuń mapę i użyj „↻ Szczegóły okolicy”, aby pobrać kolejne dane.');return;}
+     model.loadingDetail=true;model.lastRequestedAt=Date.now();const seq=++detailToken;
+     updateDetailStatus('Pobieram dokładne obrysy, części budynków i wejścia…');$('refreshDetails').disabled=true;
+     if(model.requestController)model.requestController.abort();const ctrl=new AbortController();model.requestController=ctrl;
+     const lat=point[1].toFixed(6),lon=point[0].toFixed(6);
+     const q=`[out:json][timeout:22];(nwr["building"](around:${RADIUS},${lat},${lon});nwr["building:part"](around:${RADIUS},${lat},${lon});node["entrance"](around:${RADIUS},${lat},${lon}););out geom;`;
+     let error=null,data=null;
+     for(const endpoint of API){
+       if(ctrl.signal.aborted)break;
+       const endpointCtrl=new AbortController();const forward=()=>endpointCtrl.abort();ctrl.signal.addEventListener('abort',forward,{once:true});
+       const timer=setTimeout(()=>endpointCtrl.abort(),18000);
+       try{
+         const response=await fetch(endpoint+'?data='+encodeURIComponent(q),{signal:endpointCtrl.signal,headers:{Accept:'application/json'}});
+         if(!response.ok)throw new Error('HTTP '+response.status);
+         const result=await response.json();if(!Array.isArray(result.elements))throw new Error('Odpowiedź bez elementów');
+         data=osmDataToGeo(result.elements);break;
+       }catch(e){error=e;console.warn('OSM',endpoint,e);}finally{clearTimeout(timer);ctrl.signal.removeEventListener('abort',forward);}
+     }
+     if(seq!==detailToken)return;
+     model.loadingDetail=false;$('refreshDetails').disabled=false;
+     if(data){model.cache.unshift({center:point,at:Date.now(),data});model.cache=model.cache.slice(0,6);applyDetail(data,point);}
+     else{updateDetailStatus('Nie udało się pobrać dokładnych danych OSM. Podstawowa mapa 3D nadal działa.');openToast('Serwer szczegółów jest niedostępny. Spróbuj za chwilę.');console.warn('Szczegóły',error);}
+  }
+  function applyDetail(data,center){
+     model.detailData=data.features;model.doors=data.doors;model.lastCenter=center;
+     setData('detailed-buildings',{type:'FeatureCollection',features:data.features});
+     setData('entrance-points',{type:'FeatureCollection',features:data.doors});
+     const haveLevels=data.features.filter(f=>f.properties.floors>0).length;
+     updateDetailStatus(`OK: ${data.features.length} brył / części, ${haveLevels} z liczbą pięter, ${data.doors.length} wejść. Obszar ~230 m.`);
+  }
+  function addAllLayers(){const map=model.map,style=map.getStyle();
+     const sourceId=map.getSource('openmaptiles')?'openmaptiles':map.getSource('openfreemap')?'openfreemap':null;
+     model.sourceId=sourceId;
+     for(const layer of style.layers){if(layer.type==='fill-extrusion')map.setLayoutProperty(layer.id,'visibility','none');}
+     if(!sourceId)map.addSource('openfreemap-explorer',{type:'vector',url:'https://tiles.openfreemap.org/planet'});
+     const src=sourceId||'openfreemap-explorer';
+     const labels=style.layers.find(l=>l.type==='symbol'&&l.layout?.['text-field'])?.id;
+     map.addLayer({id:'base-footprint',type:'line',source:src,'source-layer':'building',minzoom:14.5,
+        filter:['!=',['get','hide_3d'],true],paint:{'line-color':'#334d59','line-width':['interpolate',['linear'],['zoom'],14,.4,19,1.4],'line-opacity':.8}},labels);
+     map.addLayer({id:'base-3d',type:'fill-extrusion',source:src,'source-layer':'building',minzoom:14.5,
+        filter:['!=',['get','hide_3d'],true],paint:{'fill-extrusion-color':['interpolate',['linear'],['to-number',['get','render_height'],10],0,'#d3dbdd',30,'#b1c9d0',90,'#8caabb',180,'#668aa6',350,'#5f7594'],
+          'fill-extrusion-height':['max',3,['to-number',['get','render_height'],10]],'fill-extrusion-base':['max',0,['to-number',['get','render_min_height'],0]],'fill-extrusion-opacity':.87,'fill-extrusion-vertical-gradient':true}},labels);
+     for(const srcId of ['detailed-buildings','selected-footprint','selected-bands','entrance-points'])map.addSource(srcId,{type:'geojson',data:EMPTY});
+     map.addLayer({id:'detail-buildings',type:'fill-extrusion',source:'detailed-buildings',minzoom:15,filter:['==',['get','kind'],'whole'],paint:{'fill-extrusion-height':['get','height'],'fill-extrusion-base':['get','base'],'fill-extrusion-color':colorExpr(),'fill-extrusion-opacity':.95,'fill-extrusion-vertical-gradient':true}},labels);
+     map.addLayer({id:'detail-parts',type:'fill-extrusion',source:'detailed-buildings',minzoom:15,filter:['==',['get','kind'],'part'],paint:{'fill-extrusion-height':['get','height'],'fill-extrusion-base':['get','base'],'fill-extrusion-color':colorExpr(),'fill-extrusion-opacity':.98,'fill-extrusion-vertical-gradient':true}},labels);
+     map.addLayer({id:'detail-outlines',type:'line',source:'detailed-buildings',minzoom:15,paint:{'line-color':'#274959','line-opacity':.92,'line-width':['interpolate',['linear'],['zoom'],15,.7,19,2.2]}},labels);
+     map.addLayer({id:'selected-outline',type:'line',source:'selected-footprint',minzoom:14,paint:{'line-color':'#56ffe4','line-width':3.5,'line-opacity':1}},labels);
+     map.addLayer({id:'floor-bands',type:'fill-extrusion',source:'selected-bands',minzoom:15,paint:{'fill-extrusion-height':['get','top'],'fill-extrusion-base':['get','base'],'fill-extrusion-color':'#2e5b67','fill-extrusion-opacity':.9}},labels);
+     map.addLayer({id:'entrance-circles',type:'circle',source:'entrance-points',minzoom:17.5,paint:{'circle-radius':['interpolate',['linear'],['zoom'],17.5,2.4,20,5.4],'circle-color':'#29f2c8','circle-stroke-color':'#0e3341','circle-stroke-width':1.4}},labels);
+     map.on('click','entrance-circles',e=>{if(model.mode==='walk')return;e.originalEvent.stopPropagation();openToast('Wejście: '+(e.features?.[0]?.properties?.value||'oznaczone w OSM'));});
+     map.on('mouseenter','detail-buildings',()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave','detail-buildings',()=>map.getCanvas().style.cursor='');
+     map.on('mouseenter','detail-parts',()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave','detail-parts',()=>map.getCanvas().style.cursor='');
+  }
+  function toggleDetail(){model.details=!model.details;$('detailsBtn').classList.toggle('on',model.details);$('detailsBtn').textContent=model.details?'⌖ Dokładne obrysy':'⌖ Obrysy: WYŁ.';
+     for(const l of ['detail-buildings','detail-parts','detail-outlines'])model.map.setLayoutProperty(l,'visibility',model.details?'visible':'none');
+     if(model.details)loadDetailArea();else updateDetailStatus('Szczegółowe dane wyłączone; wyświetlane są bryły mapy podstawowej.');}
+  function toggleEntrance(){model.entrances=!model.entrances;$('entrancesBtn').classList.toggle('on',model.entrances);$('entrancesBtn').textContent=model.entrances?'⌂ Wejścia':'⌂ Wejścia: WYŁ.';model.map.setLayoutProperty('entrance-circles','visibility',model.entrances?'visible':'none');}
+  const initial=PLACES.roemer;
+  const map=model.map=new gl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/liberty',center:initial.c,zoom:17.25,pitch:64,bearing:initial.bearing,maxZoom:21,minZoom:12,maxPitch:85,antialias:true,fadeDuration:0,attributionControl:true,canvasContextAttributes:{antialias:true},pixelRatio:Math.min(devicePixelRatio||1,1.6),maxBounds:[[8.44,49.94],[8.94,50.28]]});
+  model.loadingTime=setTimeout(()=>{if(!model.ready){$('loadStatus').textContent='Ładowanie mapy trwa długo. Sprawdź Internet i Brave Shields. Możesz też spróbować Chrome.';}},19000);
+  map.on('load',()=>{try{addAllLayers();model.ready=true;clearTimeout(model.loadingTime);$('loading').style.display='none';loadDetailArea(true);}catch(e){console.error(e);fatal('Mapa się uruchomiła, ale nie udało się wczytać warstw budynków: '+e.message);}});
+  map.on('error',e=>{let msg=String(e.error?.message||e.error||'');console.warn('Mapa 3D:',msg);if(!model.ready&&/Failed|fetch|Network|404|style|source|worker/i.test(msg))$('loadStatus').textContent='Problem z pobraniem mapy. Sprawdź połączenie i zabezpieczenia przeglądarki.';});
+  const worldPoint=()=>{let c=map.getCenter();return [c.lng,c.lat];};
+  let walk={lng:initial.c[0],lat:initial.c[1],heading:0,tilt:0},lastTick=performance.now(),joyX=0,joyY=0,stickPointer=null,lookPointer=null,lx=0,ly=0,lookStart=null,moved=false,pressed=new Set();
+  function drawWalk(){if(model.mode!=='walk'||!model.ready)return;
+    const dx=Math.cos(walk.heading),dy=Math.sin(walk.heading),toLng=walk.lng+dx*21/(111320*Math.cos(walk.lat*Math.PI/180)),toLat=walk.lat+dy*21/111320;
+    const a=new gl.LngLat(walk.lng,walk.lat),b=new gl.LngLat(toLng,toLat);
+    const targetH=1.7+Math.tan(walk.tilt)*21;
+    try{if(typeof map.calculateCameraOptionsFromTo==='function'){map.jumpTo(map.calculateCameraOptionsFromTo(a,1.7,b,targetH));}
+       else{map.jumpTo({center:b,zoom:20.4,pitch:85,bearing:(90-walk.heading*180/Math.PI+360)%360});}}
+    catch(e){console.warn('Spacer:',e);map.jumpTo({center:b,zoom:20,pitch:80,bearing:(90-walk.heading*180/Math.PI+360)%360});}
+  }
+  function switchMode(to){if(!model.ready)return;if(to===model.mode)return;const oldMode=model.mode;const prior=current();const viewCenter=oldMode==='walk'?[walk.lng,walk.lat]:[prior.lng,prior.lat];hideInfo();model.mode=to;document.body.classList.toggle('walk',to==='walk');
+    for(const [id,key]of [['mode3d','3d'],['mode2d','2d'],['modeWalk','walk']])$(id).classList.toggle('active',to===key);
+    if(to==='walk'){const c=current();walk.lng=c.lng;walk.lat=c.lat;walk.heading=(90-map.getBearing())*Math.PI/180;walk.tilt=0;map.dragPan.disable();map.dragRotate.disable();map.touchZoomRotate.disable();map.doubleClickZoom.disable();map.scrollZoom.disable();drawWalk();}
+    else{map.dragPan.enable();map.dragRotate.enable();map.touchZoomRotate.enable();map.doubleClickZoom.enable();map.scrollZoom.enable();clearJoy();map.easeTo({center:viewCenter,zoom:to==='2d'?17.7:17.25,pitch:to==='2d'?0:64,bearing:to==='2d'?0:-24,duration:500});}
+    $('hint').textContent=to==='2d'?'Mapa 2D — dotknij konturu, aby zobaczyć szczegóły.':'Dotknij budynku, aby poznać liczbę pięter. OSM ~230 m.';
+  }
+  function jumpToPlace(){if(!model.ready)return;const p=PLACES[$('place').value];if(!p)return;if(model.mode==='walk')switchMode('3d');hideInfo();map.flyTo({center:p.c,zoom:17.2,pitch:model.mode==='2d'?0:64,bearing:model.mode==='2d'?0:p.bearing,duration:750,essential:true});}
+  // Warn when the player tries to go from the pavement into a building with a known footprint.
+  function intersectsBuilding(p){for(const f of model.detailData){if(f.properties.kind==='whole'&&hasGeo(f.geometry,p))return true;}return false;}
+  function animate(now){const dt=clamp((now-lastTick)/1000,0,.055);lastTick=now;
+    if(model.mode==='walk'&&model.ready){let fw=joyY+(pressed.has('KeyW')||pressed.has('ArrowUp')?1:0)-(pressed.has('KeyS')||pressed.has('ArrowDown')?1:0),side=joyX;
+      const len=Math.hypot(fw,side);if(len>1){fw/=len;side/=len;}
+      let turning=(pressed.has('ArrowRight')?1:0)-(pressed.has('ArrowLeft')?1:0);if(turning)walk.heading-=turning*dt*1.7;
+      if(Math.abs(fw)>.03||Math.abs(side)>.03||turning){const speed=model.run||pressed.has('ShiftLeft')?7.5:2.8;
+       const east=fw*Math.cos(walk.heading)+side*Math.sin(walk.heading),north=fw*Math.sin(walk.heading)-side*Math.cos(walk.heading);
+       const next=[walk.lng+east*speed*dt/(111320*Math.cos(walk.lat*Math.PI/180)),walk.lat+north*speed*dt/111320];
+       if(!intersectsBuilding(next)||intersectsBuilding([walk.lng,walk.lat])){walk.lng=next[0];walk.lat=next[1];}
+       drawWalk();
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+  function clearJoy(){stickPointer=null;joyX=0;joyY=0;$('knob').style.transform='translate(-50%,-50%)';}
+  function moveJoy(e){const r=$('joy').getBoundingClientRect(),rad=r.width*.31;let x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;let len=Math.hypot(x,y);if(len>rad){x=x/len*rad;y=y/len*rad;}joyX=x/rad;joyY=-y/rad;$('knob').style.transform=`translate(calc(-50% + ${x}px),calc(-50% + ${y}px))`;}
+  $('joy').addEventListener('pointerdown',e=>{e.preventDefault();stickPointer=e.pointerId;$('joy').setPointerCapture(e.pointerId);moveJoy(e);});
+  $('joy').addEventListener('pointermove',e=>{if(e.pointerId===stickPointer)moveJoy(e);});
+  $('joy').addEventListener('pointerup',e=>{if(e.pointerId===stickPointer)clearJoy();});$('joy').addEventListener('pointercancel',clearJoy);$('joy').addEventListener('lostpointercapture',clearJoy);
+  const lookEl=$('look');lookEl.addEventListener('pointerdown',e=>{if(model.mode!=='walk')return;e.preventDefault();lookPointer=e.pointerId;lx=e.clientX;ly=e.clientY;lookStart={x:lx,y:ly};moved=false;lookEl.setPointerCapture(e.pointerId);});
+  lookEl.addEventListener('pointermove',e=>{if(e.pointerId!==lookPointer||model.mode!=='walk')return;let dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;if(Math.hypot(e.clientX-lookStart.x,e.clientY-lookStart.y)>9)moved=true;if(moved){walk.heading-=dx*.006;walk.tilt=clamp(walk.tilt-dy*.003,-.45,.38);drawWalk();}});
+  lookEl.addEventListener('pointerup',e=>{if(e.pointerId!==lookPointer)return;if(!moved){const rect=map.getCanvas().getBoundingClientRect();clickAt({x:e.clientX-rect.left,y:e.clientY-rect.top});}lookPointer=null;lookStart=null;});
+  lookEl.addEventListener('pointercancel',()=>{lookPointer=null;lookStart=null;});
+  window.addEventListener('keydown',e=>{if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft'].includes(e.code)){pressed.add(e.code);if(model.mode==='walk')e.preventDefault();}});
+  window.addEventListener('keyup',e=>pressed.delete(e.code));window.addEventListener('blur',()=>{pressed.clear();clearJoy();});
+  map.on('click',e=>{if(model.mode!=='walk')clickAt(e.point);});
+  map.on('moveend',()=>{if(model.mode==='walk'||!model.ready||!model.details)return;
+    if(model.autoRequest&&model.lastCenter&&distance(worldPoint(),model.lastCenter)>220&&Date.now()-model.lastRequestedAt>24000)loadDetailArea();
+  });
+  $('mode3d').onclick=()=>switchMode('3d');$('mode2d').onclick=()=>switchMode('2d');$('modeWalk').onclick=()=>switchMode('walk');
+  $('goBtn').onclick=jumpToPlace;$('refreshDetails').onclick=()=>loadDetailArea(true);
+  $('detailsBtn').onclick=toggleDetail;$('entrancesBtn').onclick=toggleEntrance;
+  $('zoomIn').onclick=()=>map.zoomIn();$('zoomOut').onclick=()=>map.zoomOut();$('north').onclick=()=>map.easeTo({bearing:0,duration:500});
+  $('closeInfo').onclick=hideInfo;$('walkReturn').onclick=()=>switchMode('3d');
+  $('runBtn').onclick=()=>{model.run=!model.run;$('runBtn').textContent=model.run?'⚡ Bieg: WŁ.':'⚡ Bieg: WYŁ.';};
+  $('helpBtn').onclick=()=>{$('help').style.display='flex';clearJoy();};$('closeHelp').onclick=()=>{$('help').style.display='none';};
+  $('collapseBtn').onclick=()=>{document.body.classList.toggle('collapsed');};
+  requestAnimationFrame(animate);
+}
+init().catch(e=>{console.error(e);fatal('Nieoczekiwany błąd. Spróbuj ponownie.');});
+</script>
+</body>
+</html>
